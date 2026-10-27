@@ -382,7 +382,7 @@ function sheet(path,store,teacherMedia){
     modal(b=>{
       const paint=()=>{
         b.innerHTML=`<h3>${title}</h3>`+(it.t==='corr'?`<label>Forme correcte (s’affiche sous l’erreur, en vert)<input id="fx" value="${esc(draft.fix)}"></label>`:'')+
-          `<label>${it.t==='note'?'Texte de la note':'Explication pour l’élève (facultatif)'}<textarea id="tx" rows="4">${esc(draft.txt)}</textarea></label>`+mediaHTML(draft,teacherMedia);
+          `<label>${it.t==='note'?'Texte de la note':'Explication pour l’élève (facultatif)'}<textarea id="tx" rows="${it.t==='note'?12:4}">${esc(draft.txt)}</textarea></label>`+mediaHTML(draft,teacherMedia);
         const keep=()=>{draft.txt=$('#tx').value;if($('#fx'))draft.fix=$('#fx').value};
         if(area||it.t==='audio'||it.t==='video'){
           const m=h('div','row l'),au=h('button','',draft.a?'Remplacer par un audio':'♪ Joindre un audio'),vi=h('button','',draft.a?'Remplacer par une vidéo':'▶ Joindre une vidéo');
