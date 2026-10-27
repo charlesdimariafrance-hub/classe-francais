@@ -102,6 +102,14 @@ main{flex:1;min-width:0;overflow:auto;position:relative}
 #main,#ov{touch-action:pan-x pan-y}
 body.zoomed .stage{align-items:flex-start}
 .zc{display:inline-flex;gap:3px;align-items:center}.zc .zlab{min-width:58px;font-size:13px}
+/* Repères « devoir corrigé » posés sur les pages du cours */
+.cmk{position:absolute;inset:0;pointer-events:none;z-index:5}
+.cpin{position:absolute;pointer-events:auto;transform:translate(-50%,-50%);display:flex;align-items:center;gap:5px;background:var(--fix);color:#fff;border:2px solid #fff;border-radius:20px;padding:5px 11px 5px 8px;font:700 13px var(--body);box-shadow:0 3px 10px #0006;white-space:nowrap}
+.cpin:hover{background:#0b5e2f}.cpin .g{background:#fff;color:var(--fix);border-radius:10px;padding:0 6px;font-size:12px}
+.cpin.pulse{animation:pu 1.4s ease 3}@keyframes pu{50%{box-shadow:0 0 0 8px #0f7a3d55}}
+body.placing .sheet{cursor:crosshair;outline:3px dashed var(--fix);outline-offset:4px}
+.th .cd{position:absolute;top:3px;left:3px;min-width:16px;height:16px;border-radius:8px;background:var(--fix);border:1px solid #fff;color:#fff;font:700 10px/14px var(--body);font-style:normal;text-align:center;padding:0 3px}
+@media (max-width:860px){.cpin{font-size:12px;padding:4px 9px 4px 7px}}
 #pnav{display:none}#scrim{position:fixed;inset:0;z-index:55;background:#081a1c80}
 .closeSide{display:none}
 body{height:100dvh}
@@ -287,7 +295,7 @@ function renderSide(){
       const id=pid(s.book,n),b=h('button','th'+(cur().id===id?' cur':''));
       const rem=(S.ann[id]||[]).filter(hasContent).length;
       b.title=(s.marks[n]||markFor(s,n))+' · page '+pn(n);
-      b.innerHTML=`<img data-b="c/${id}t.bin" alt="">${s.marks[n]?`<span class="lab">${esc(s.marks[n])}</span>`:''}${rem?`<i class="dot">${rem}</i>`:(S.ann[id]||[]).length?'<i class="dot"></i>':''}`;
+      b.innerHTML=`<img data-b="c/${id}t.bin" alt="">${s.marks[n]?`<span class="lab">${esc(s.marks[n])}</span>`:''}${rem?`<i class="dot">${rem}</i>`:(S.ann[id]||[]).length?'<i class="dot"></i>':''}${(()=>{const k=S.copies.filter(x=>x.page===id).length;return k?`<i class="cd" title="Devoir corrigé">✎${k>1?k:''}</i>`:''})()}`;
       b.onclick=()=>{menu(false);S.view='livre';go(SEQ.findIndex(x=>x.id===id))};
       g.append(b)
     }
@@ -375,6 +383,8 @@ function sheet(path,store,teacherMedia){
   let st=null,tmp=null;
   const pos=ev=>{const r=layer.getBoundingClientRect();return{x:Math.min(1,Math.max(0,(ev.clientX-r.left)/r.width)),y:Math.min(1,Math.max(0,(ev.clientY-r.top)/r.height))}};
   layer.onpointerdown=ev=>{
+    if(S.placing&&edit()&&store.page){const p=pos(ev),c=S.copies.find(x=>x.id===S.placing);S.placing=null;document.body.classList.remove('placing');
+      if(c){c.page=store.page;c.pos={x:p.x,y:p.y};scheduleSave('d');refresh();toast('Repère placé ✓')}ev.preventDefault();return}
     if(!edit()||S.tool==='read'||S.tool==='erase')return;
     const p=pos(ev);
     if(['hl','ul','corr'].includes(S.tool)){st=p;tmp=h('div','temp');layer.append(tmp);layer.setPointerCapture(ev.pointerId);ev.preventDefault();return}
@@ -405,12 +415,12 @@ addEventListener('beforeunload',e=>{if(DIRTY.size){e.preventDefault();e.returnVa
 
 function refresh(){
   document.querySelectorAll('.sheet').forEach(e=>e._draw&&e._draw());
-  renderSide();renderRemarks();
+  renderSide();renderRemarks();drawPins();
   const d=$('#dipt');if(d){const n=S.copies.filter(x=>x.dossier===cur().s.key).length;d.textContent=`Devoirs → ${n?'('+n+')':''}`}
 }
 
 /* ---------- Le cours ---------- */
-function bookStore(id){return{get:()=>S.ann[id]||[],set:l=>{S.ann[id]=l;scheduleSave('d')}}}
+function bookStore(id){return{page:id,get:()=>S.ann[id]||[],set:l=>{S.ann[id]=l;scheduleSave('d')}}}
 let bookSheet=null;
 function renderRemarks(){
   const box=$('#remarks');if(!box||!bookSheet)return;box.innerHTML='';
@@ -420,6 +430,16 @@ function renderRemarks(){
   list.forEach(({it,k})=>{const mk=mediaKind(it);const lab=mk==='audio'?'♪ Écouter':mk==='video'?'▶ Regarder':it.t==='corr'?'✓ '+it.fix:'✎ '+(it.txt||'').slice(0,40);
     const b=h('button','chip '+mk,esc(lab+(mk&&it.txt?' · '+it.txt.slice(0,30):'')));b.onclick=()=>bookSheet._open(k);box.append(b)})
 }
+function drawPins(){
+  const mk=bookSheet?._marks;if(!mk)return;mk.innerHTML='';
+  S.copies.filter(x=>x.page===cur().id).forEach((c,i)=>{
+    const p=c.pos||{x:.86,y:.05+i*.06};
+    const b=h('button','cpin'+(S.justPlaced===c.id?' pulse':''),`✎ ${esc(c.title||'Devoir corrigé')}${c.grade?` <span class="g">${esc(c.grade)}</span>`:''}`);
+    b.style.left=p.x*100+'%';b.style.top=p.y*100+'%';b.title='Voir le devoir corrigé';
+    b.onpointerdown=ev=>ev.stopPropagation();b.onclick=ev=>{ev.stopPropagation();openCopy(c)};mk.append(b)})
+}
+function placePin(c){S.placing=c.id;onClose=null;close();S.view='livre';const pg=SEQ.findIndex(q=>q.id===c.page);if(pg>=0)S.i=pg;render();document.body.classList.add('placing');
+  toast('Clique sur la page à l’endroit de l’exercice. Change de page avec les flèches si besoin.')}
 function renderLivre(m){
   const c=cur(),s=c.s,mk=markFor(s,c.n);
   const bar=h('div','bar');
@@ -439,6 +459,7 @@ function renderLivre(m){
   if(linked.length){const l=h('button','pill',`${linked.length} devoir${linked.length>1?'s':''} corrigé${linked.length>1?'s':''} sur cette page →`);l.onclick=()=>openCopy(linked[0]);stg.append(l)}
   const rm=h('div','remarks');rm.id='remarks';rm.hidden=true;stg.append(rm);
   bookSheet=sheet(`c/${c.id}.bin`,bookStore(c.id));stg.append(bookSheet);
+  const pins=h('div','cmk');bookSheet.append(pins);bookSheet._marks=pins;
   m.append(stg);
   const L=h('button','side','‹'),Rr=h('button','side','›');L.style.left=innerWidth>860?'316px':'8px';Rr.style.right='max(70px,env(safe-area-inset-right,0px))';L.onclick=()=>go(S.i-1);Rr.onclick=()=>go(S.i+1);L.ariaLabel='Page précédente';Rr.ariaLabel='Page suivante';m.append(L,Rr);
   if(SEQ[S.i+1])blobUrl(`c/${SEQ[S.i+1].id}.bin`).catch(()=>{});
@@ -476,6 +497,12 @@ function openCopy(c0){
     const tb=h('span');const sheets=(c.images||[]).map((a,k)=>sheet(bpath(a),copyStore(c,k)));
     const draw=()=>{tb.innerHTML='';tb.append(toolbar(draw));sheets.forEach(x=>x._draw())};
     top.append(tb,zoomCtl());
+    if(edit()){const sel=h('select');sel.setAttribute('aria-label','Page du cours liée');sel.style.width='auto';
+      const ds=SECTIONS.find(x=>x.key===c.dossier)||curDossier();
+      sel.innerHTML='<option value="">Page du cours : aucune</option>'+ds.pages.map(n=>`<option value="${pid(ds.book,n)}"${pid(ds.book,n)===c.page?' selected':''}>Page du cours : ${esc(markFor(ds,n))} · p. ${pn(n)}</option>`).join('');
+      sel.onchange=()=>{c.page=sel.value;delete c.pos;scheduleSave('d');toast(c.page?'Devoir rangé avec cette page':'Plus de page liée')};
+      const pl=h('button','on','📍 Placer le repère sur la page');pl.onclick=()=>{if(!c.page)c.page=sel.value||pid(ds.book,ds.pages[0]);placePin(c)};
+      top.append(sel,pl)}
     if(pg){const j=h('button','','Voir la page du cours');j.onclick=()=>{onClose=null;close();S.view='livre';go(SEQ.indexOf(pg))};top.append(j)}
     if(edit()){const d=h('button','danger','Supprimer le devoir');let armed=false;d.onclick=()=>{if(!armed){armed=true;d.textContent='Confirmer la suppression';return}S.copies=S.copies.filter(x=>x.id!==c.id);scheduleSave('d');close();toast('Devoir supprimé')};top.append(d)}
     const x=h('button','','Fermer');x.onclick=close;top.append(x);b.append(top);
@@ -546,7 +573,7 @@ async function settings(){
 function render(){
   renderTabs();renderSide();const m=$('#main');m.innerHTML='';bookSheet=null;$('#pnav').hidden=true;
   if(S.view==='copies')renderCopies(m);else if(S.view==='prof'&&edit())renderGuide(m);else{S.view='livre';renderLivre(m)}
-  refresh();
+  refresh();drawPins();
   const c=$('#side .th.cur');if(c)c.scrollIntoView({block:'nearest'})
 }
 $('#menuBtn').onclick=()=>menu(!$('#side').classList.contains('open'));
