@@ -452,7 +452,7 @@ async function settings(){
   const url=location.origin+location.pathname;
   const msg=c?`Bonjour ! Voici le code du cours de français, valable jusqu’au ${fmtD(last)} inclus : ${c.code}\nLe site : ${url}`:'';
   modal(b=>{
-    b.innerHTML=`<h3>Code de la classe</h3>`+(c?`<div class="bigcode">${c.code}</div><p class="hint">Valable du ${fmtD(c.from)} au ${fmtD(last)} inclus. Il change automatiquement tous les 3 jours : l’ancien code ne marche plus.</p>${nx?`<p class="hint">Prochain code (à partir du ${fmtD(nx.from)}) : <b>${nx.code}</b></p>`:''}<label>Message pour WhatsApp<textarea id="wm" rows="3" readonly>${esc(msg)}</textarea></label>`:'<p>L’accès des élèves est terminé (période de 75 jours écoulée).</p>')+
+    b.innerHTML=`<h3>Code de la classe</h3>`+(c?`<div class="bigcode">${c.code}</div><p class="hint">Valable du ${fmtD(c.from)} au ${fmtD(last)} inclus. Il change automatiquement à la date indiquée : l’ancien code ne marche plus.</p>${nx?`<p class="hint">Prochain code (à partir du ${fmtD(nx.from)}) : <b>${nx.code}</b></p>`:''}<label>Message pour WhatsApp<textarea id="wm" rows="3" readonly>${esc(msg)}</textarea></label>`:'<p>L’accès des élèves est terminé (fin janvier 2027).</p>')+
       `<h3 style="margin-top:8px">Clé GitHub</h3><p class="hint">${LS.get('cf_tok')?'Une clé est enregistrée dans ce navigateur.':'Aucune clé : tes modifications ne peuvent pas être enregistrées.'}</p>`+
       `<h3 style="margin-top:8px">Mot de passe professeur</h3><label>Nouveau mot de passe (8 caractères minimum)<input id="np" type="password" autocomplete="new-password"></label>`;
     const r=h('div','row l');
@@ -473,7 +473,8 @@ function render(){
 $('#menuBtn').onclick=()=>$('#side').classList.toggle('open');
 
 /* ---------- Entrée ---------- */
-function period(){return Math.floor((Date.now()-new Date(S.meta.start))/(S.meta.days*864e5))}
+function period(){if(S.meta.mode==='month'){const ym=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Argentina/Buenos_Aires',year:'numeric',month:'2-digit'}).format(new Date()).slice(0,7);let n=-1;S.meta.starts.forEach((x,i)=>{if(x<=ym)n=i});return n<0?-1:(ym>=nextMonth(S.meta.starts[S.meta.starts.length-1])&&n===S.meta.starts.length-1?S.meta.periods:n)}return Math.floor((Date.now()-new Date(S.meta.start))/(S.meta.days*864e5))}
+function nextMonth(ym){let[y,m]=ym.split('-').map(Number);m++;if(m>12){m=1;y++}return y+'-'+String(m).padStart(2,'0')}
 async function enter(K,T){
   S.K=await aes(K);if(T){S.T=await aes(T);S.teacher=true}
   const st=JSON.parse(new TextDecoder().decode(await loadBin('d/state.bin',true)));S.ann=st.ann||{};S.copies=st.copies||[];
@@ -497,7 +498,7 @@ async function enter(K,T){
     btn.disabled=true;btn.textContent='Vérification…';err.textContent='';
     try{
       if(teacherDoor){const o=JSON.parse(new TextDecoder().decode(await unwrap('keys/teacher.json',v)));LS.set('cf_t',o);await enter(ub(o.K),ub(o.T))}
-      else{const raw=await unwrap(`keys/p${String(n).padStart(2,'0')}.json`,v);LS.set('cf_s',{n,k:bu(raw)});await enter(raw)}
+      else{const f=`keys/p${String(n).padStart(2,'0')}`;let raw;try{raw=await unwrap(f+'.json',v)}catch(x){raw=await unwrap(f+'b.json',v)}LS.set('cf_s',{n,k:bu(raw)});await enter(raw)}
     }catch(x){err.textContent=teacherDoor?'Mot de passe incorrect.':'Code incorrect ou expiré. Demande le nouveau code à ton professeur.';btn.disabled=false;btn.textContent='Entrer'}
   }
 })();
