@@ -159,13 +159,14 @@ const REPO='charlesdimariafrance-hub/classe-francais';
 const R=(a,b)=>Array.from({length:b-a+1},(_,i)=>a+i);
 const SECTIONS=[
  {key:'mae3',book:'mae',bt:'Mon alter ego 2',title:'Dossier 3 · Choisir son cadre de vie',pages:R(3,18),marks:{3:'Ouverture',4:'Leçon 1',8:'Leçon 2',12:'Leçon 3',16:'Fenêtre sur',18:'Comprendre un écrit'}},
- {key:'mae4',book:'mae',bt:'Mon alter ego 2',title:'Dossier 4 · S’insérer dans la vie active',pages:R(19,33),marks:{19:'Ouverture',20:'Leçon 1',23:'Leçon 2',27:'Leçon 3',31:'Fenêtre sur',33:'Comprendre à l’oral'}},
+ {key:'mae4',book:'mae',bt:'Mon alter ego 2',title:'Dossier 4 · S’insérer dans la vie active',pages:[...R(19,22),22.5,...R(23,33)],marks:{19:'Ouverture',20:'Leçon 1',22.5:'À retenir',23:'Leçon 2',27:'Leçon 3',31:'Fenêtre sur',33:'Comprendre à l’oral'}},
  {key:'cos1',book:'cos',bt:'Cosmopolite 3',title:'Dossier 1 · Et si on allait vivre ailleurs ?',pages:R(4,21),marks:{4:'Ouverture',6:'Leçon 1',8:'Leçon 2',10:'Focus langue',12:'Leçon 3',14:'Leçon 4',16:'Focus langue',18:'Stratégies',19:'Projets',20:'DELF'}},
  {key:'cos2',book:'cos',bt:'Cosmopolite 3',title:'Dossier 2 · Nous nous installons dans un pays francophone',pages:R(22,39),marks:{22:'Ouverture',24:'Leçon 1',26:'Leçon 2',28:'Focus langue',30:'Leçon 3',32:'Leçon 4',34:'Focus langue',36:'Stratégies',37:'Projets',38:'DELF'}},
  {key:'maeA',book:'mae',bt:'Mon alter ego 2',title:'Sommaire, DELF et annexes',annex:1,pages:[1,2,...R(34,64)],marks:{1:'Couverture',2:'Sommaire',34:'DELF A2',45:'Précis grammatical',54:'Phonie-graphie',59:'Conjugaisons',62:'Cartes'}},
  {key:'cosA',book:'cos',bt:'Cosmopolite 3',title:'Sommaire et annexes',annex:1,pages:[1,2,3,...R(40,75)],marks:{1:'Couverture',3:'Contenus',42:'S’exercer D1',46:'S’exercer D2',50:'Phonétique',55:'Grammaire',72:'Conjugaison'}}
 ];
-const pid=(b,n)=>b+String(n).padStart(2,'0');
+const pid=(b,n)=>b+String(Math.floor(n)).padStart(2,'0')+(Number.isInteger(n)?'':'b');
+const pn=n=>Number.isInteger(n)?String(n):Math.floor(n)+' bis';
 const SEQ=[];SECTIONS.forEach(s=>s.pages.forEach(n=>SEQ.push({id:pid(s.book,n),n,s})));
 const S={i:0,view:'livre',tool:'read',color:'#ffd400',teacher:false,asStudent:false,ann:{},copies:[],guides:{},gann:{},K:null,T:null,meta:null};
 const COLORS=['#ffd400','#7ee07a','#7cc4ff','#ff8fb1','#d8432f'];
@@ -285,7 +286,7 @@ function renderSide(){
     for(const n of s.pages){
       const id=pid(s.book,n),b=h('button','th'+(cur().id===id?' cur':''));
       const rem=(S.ann[id]||[]).filter(hasContent).length;
-      b.title=(s.marks[n]||markFor(s,n))+' · page '+n;
+      b.title=(s.marks[n]||markFor(s,n))+' · page '+pn(n);
       b.innerHTML=`<img data-b="c/${id}t.bin" alt="">${s.marks[n]?`<span class="lab">${esc(s.marks[n])}</span>`:''}${rem?`<i class="dot">${rem}</i>`:(S.ann[id]||[]).length?'<i class="dot"></i>':''}`;
       b.onclick=()=>{menu(false);S.view='livre';go(SEQ.findIndex(x=>x.id===id))};
       g.append(b)
@@ -422,13 +423,13 @@ function renderRemarks(){
 function renderLivre(m){
   const c=cur(),s=c.s,mk=markFor(s,c.n);
   const bar=h('div','bar');
-  bar.append(h('div','where',`${esc(s.title)}<small>${esc(s.bt)} · ${esc(mk)} · page ${c.n}</small>`));
+  bar.append(h('div','where',`${esc(s.title)}<small>${esc(s.bt)} · ${esc(mk)} · page ${pn(c.n)}</small>`));
   const prev=h('button','pn','←'),next=h('button','pn','→');prev.title='Page précédente';next.title='Page suivante';prev.disabled=S.i===0;next.disabled=S.i===SEQ.length-1;prev.onclick=()=>go(S.i-1);next.onclick=()=>go(S.i+1);
   const tb=h('span');const redraw=()=>{tb.innerHTML='';tb.append(toolbar(redraw));bookSheet&&bookSheet._draw()};redraw();
   bar.append(tb,zoomCtl('dz'),prev,next);m.append(bar);
   /* barre du bas, sur téléphone */
   const nav=$('#pnav');nav.innerHTML='';nav.hidden=false;
-  const np=h('button','','‹'),nn=h('button','','›'),pg=h('button','pages',`☰ p. ${c.n}`);
+  const np=h('button','','‹'),nn=h('button','','›'),pg=h('button','pages',`☰ p. ${pn(c.n)}`);
   np.setAttribute('aria-label','Page précédente');nn.setAttribute('aria-label','Page suivante');pg.setAttribute('aria-label','Toutes les pages');
   np.disabled=S.i===0;nn.disabled=S.i===SEQ.length-1;np.onclick=()=>go(S.i-1);nn.onclick=()=>go(S.i+1);pg.onclick=()=>menu(true);
   nav.append(np,pg,zoomCtl(),nn);
@@ -461,7 +462,7 @@ function renderCopies(m){
   if(!list.length)stg.append(h('div','empty',`<h3>Aucun devoir pour ce dossier</h3>${edit()?'Prends en photo le travail rendu par un élève, puis clique sur « Ajouter un devoir ».':'Ton professeur n’a pas encore déposé de devoir corrigé pour ce dossier.'}`));
   else{const g=h('div','grid');for(const c of list){const b=h('button','card');const na=Object.values(c.ann||{}).reduce((t,l)=>t+l.filter(x=>x.t==='corr').length,0);
     const pg=c.page?SEQ.find(q=>q.id===c.page):null;
-    b.innerHTML=`<img ${c.images?.[0]?`data-b="${bpath(c.images[0])}"`:''} alt="">${c.grade?`<span class="grade">${esc(c.grade)}</span>`:''}<div><b>${esc(c.title||'Devoir')}</b><span>${esc(c.student||'Élève')}${pg?' · '+esc(markFor(pg.s,pg.n))+' p. '+pg.n:''}${na?' · '+na+' correction'+(na>1?'s':''):c.corrected?'':' · à corriger'}</span></div>`;
+    b.innerHTML=`<img ${c.images?.[0]?`data-b="${bpath(c.images[0])}"`:''} alt="">${c.grade?`<span class="grade">${esc(c.grade)}</span>`:''}<div><b>${esc(c.title||'Devoir')}</b><span>${esc(c.student||'Élève')}${pg?' · '+esc(markFor(pg.s,pg.n))+' p. '+pn(pg.n):''}${na?' · '+na+' correction'+(na>1?'s':''):c.corrected?'':' · à corriger'}</span></div>`;
     b.onclick=()=>openCopy(c);g.append(b)}stg.append(g)}
   m.append(stg);hydrate(stg)
 }
@@ -471,7 +472,7 @@ function openCopy(c0){
   modal(b=>{
     const top=h('div','bar');top.style.borderRadius='10px';
     const pg=c.page?SEQ.find(q=>q.id===c.page):null;
-    top.append(h('div','where',`${esc(c.title||'Devoir')}<small>${esc(c.student||'Élève')}${pg?' · lié à la page '+pg.n:''}</small>`));
+    top.append(h('div','where',`${esc(c.title||'Devoir')}<small>${esc(c.student||'Élève')}${pg?' · lié à la page '+pn(pg.n):''}</small>`));
     const tb=h('span');const sheets=(c.images||[]).map((a,k)=>sheet(bpath(a),copyStore(c,k)));
     const draw=()=>{tb.innerHTML='';tb.append(toolbar(draw));sheets.forEach(x=>x._draw())};
     top.append(tb,zoomCtl());
@@ -495,7 +496,7 @@ async function shrink(file){
 }
 function newCopy(s){
   modal(b=>{
-    const opts=s.pages.map(n=>`<option value="${pid(s.book,n)}">${esc(markFor(s,n))} · page ${n}</option>`).join('');
+    const opts=s.pages.map(n=>`<option value="${pid(s.book,n)}">${esc(markFor(s,n))} · page ${pn(n)}</option>`).join('');
     b.innerHTML=`<h3>Ajouter un devoir d’élève</h3><label>Élève<input id="cst" placeholder="Prénom de l’élève"></label><label>Titre de l’exercice<input id="ctt" placeholder="Ex. : carte mentale « L’emploi »"></label><label>Page du cours liée (facultatif)<select id="cpg"><option value="">Aucune</option>${opts}</select></label><label>Photos du devoir (une ou plusieurs)<input id="cfi" type="file" accept="image/*" multiple></label>`;
     const r=h('div','row'),c=h('button','','Annuler'),ok=h('button','on','Déposer le devoir');c.onclick=close;
     ok.onclick=async()=>{const fs=[...$('#cfi').files];if(!fs.length)return toast('Ajoute au moins une photo.');ok.disabled=true;ok.textContent='Envoi…';
