@@ -53,7 +53,10 @@ main{flex:1;min-width:0;overflow:auto;position:relative}
 .fix{position:absolute;font:700 14px/1.2 var(--body);color:var(--fix);background:#ffffffee;border:1px solid #9fd3b3;border-radius:4px;padding:1px 5px;white-space:nowrap;pointer-events:none;transform:translateY(3px);max-width:60%;overflow:hidden;text-overflow:ellipsis}
 .badge{position:absolute;width:24px;height:24px;border-radius:50%;transform:translate(-30%,-70%);color:#fff;font-size:12px;display:grid;place-items:center;border:2px solid #fff;box-shadow:0 2px 6px #0005;padding:0;background:#3b6f6a}
 .badge.audio{background:#7b3fa0}.badge.video{background:#c0392b}
-.it.note{background:#fff3a6;color:#3b3412;border:1px solid #b9a24f;box-shadow:0 2px 6px #0003;font-size:13px;line-height:1.35;padding:4px 7px;max-width:34%;text-align:left;white-space:pre-wrap;transform:translate(-4px,-4px);max-height:30%;overflow:hidden}
+.it.note{width:36px;height:36px;border-radius:50%;transform:translate(-50%,-50%);background:#ffd400;color:#3b3412;border:2px solid #fff;box-shadow:0 2px 8px #0005;font-size:17px;display:grid;place-items:center;padding:0}
+.it.note:hover,.it.pin:hover{transform:translate(-50%,-50%) scale(1.12)}
+.it.note.mov,.it.pin.mov,.cpin.mov{cursor:grab;touch-action:none}.dragging{cursor:grabbing!important;opacity:.85;z-index:9}
+.notepop{font-size:17px;line-height:1.5;white-space:pre-wrap;background:#fff8cc;color:#3b3412;border-left:4px solid #ffd400;border-radius:6px;padding:10px 12px;max-height:60vh;overflow:auto}
 .it.pin{width:34px;height:34px;border-radius:50%;transform:translate(-50%,-50%);color:#fff;font-size:15px;display:grid;place-items:center;border:2px solid #fff;box-shadow:0 2px 8px #0005}
 .it.pin.audio{background:#7b3fa0}.it.pin.video{background:#c0392b}
 .temp{position:absolute;border:2px dashed var(--accent);pointer-events:none}
@@ -330,6 +333,20 @@ function toolbar(onChange){
 }
 function syncUndo(){document.querySelectorAll('.undoB').forEach(b=>b.disabled=!HIST.u.length);document.querySelectorAll('.redoB').forEach(b=>b.disabled=!HIST.r.length)}
 
+/* ---------- Glisser-déposer (notes, audios, vidéos, repères) ---------- */
+function draggable(el,box,drop){
+  el.addEventListener('pointerdown',ev=>{
+    if(ev.button>0)return;const sx=ev.clientX,sy=ev.clientY;let moving=false;
+    const mv=e=>{if(!moving&&Math.hypot(e.clientX-sx,e.clientY-sy)<6)return;
+      if(!moving){moving=true;el.classList.add('dragging');try{el.setPointerCapture(ev.pointerId)}catch(_){}}
+      const r=box.getBoundingClientRect();el.style.left=Math.min(100,Math.max(0,(e.clientX-r.left)/r.width*100))+'%';el.style.top=Math.min(100,Math.max(0,(e.clientY-r.top)/r.height*100))+'%';e.preventDefault()};
+    const up=e=>{el.removeEventListener('pointermove',mv);el.removeEventListener('pointerup',up);el.removeEventListener('pointercancel',up);removeEventListener('pointermove',mv);removeEventListener('pointerup',up);
+      if(!moving)return;el.classList.remove('dragging');el._moved=true;setTimeout(()=>el._moved=false,400);
+      const r=box.getBoundingClientRect();drop({x:Math.min(1,Math.max(0,(e.clientX-r.left)/r.width)),y:Math.min(1,Math.max(0,(e.clientY-r.top)/r.height))})};
+    el.addEventListener('pointermove',mv);el.addEventListener('pointerup',up);el.addEventListener('pointercancel',up);addEventListener('pointermove',mv);addEventListener('pointerup',up)
+  })
+}
+
 /* ---------- Feuille annotable ---------- */
 function sheet(path,store,teacherMedia){
   const el=h('div','sheet'),img=h('img');img.alt='';img.dataset.b=path;
@@ -343,11 +360,12 @@ function sheet(path,store,teacherMedia){
       let e;const area=['hl','ul','corr'].includes(it.t);
       if(area){e=h('div','it '+it.t);P(e,it.x,it.y);e.style.width=it.w*100+'%';e.style.height=it.h*100+'%';e.style.background=it.c;e.style.borderColor=it.c;
         e.style.pointerEvents=drawing?'none':(edit()||hasContent(it)?'auto':'none');if(!drawing&&(edit()||hasContent(it)))e.style.cursor='pointer'}
-      else if(it.t==='note'){e=h('button','it note',esc(it.txt));P(e,it.x,it.y)}
+      else if(it.t==='note'){e=h('button','it note','✎');P(e,it.x,it.y);e.title=(it.txt||'').slice(0,120);e.setAttribute('aria-label','Note du professeur')}
       else{e=h('button','it pin '+it.t,it.t==='audio'?'♪':'▶');P(e,it.x,it.y);e.title=it.txt||(it.t==='audio'?'Écouter la remarque':'Voir la vidéo')}
       e.dataset.k=k;
       e.onpointerdown=ev=>ev.stopPropagation();
-      e.onclick=ev=>{ev.stopPropagation();if(edit()&&S.tool==='erase')return commit(store,items().filter((_,j)=>j!==k));if(edit()||hasContent(it))openItem(k)};
+      if(!area&&edit()&&S.tool!=='erase'){e.classList.add('mov');draggable(e,layer,p=>{const l=items().slice();l[k]={...l[k],x:p.x,y:p.y};commit(store,l)})}
+      e.onclick=ev=>{ev.stopPropagation();if(e._moved){e._moved=false;return}if(edit()&&S.tool==='erase')return commit(store,items().filter((_,j)=>j!==k));if(edit()||hasContent(it))openItem(k)};
       layer.append(e);
       if(area&&it.fix){const f=h('div','fix',esc(it.fix));P(f,it.x,it.y+it.h);layer.append(f)}
       if(area&&(it.a||it.txt)){const mk=mediaKind(it),b=h('button','badge '+(mk||''),mk==='audio'?'♪':mk==='video'?'▶':'✎');P(b,it.x+it.w,it.y);b.title='Ouvrir la remarque';b.onpointerdown=ev=>ev.stopPropagation();b.onclick=ev=>{ev.stopPropagation();openItem(k)};layer.append(b)}
@@ -359,7 +377,7 @@ function sheet(path,store,teacherMedia){
     const it=items()[k];if(!it)return;const area=['hl','ul','corr'].includes(it.t);
     layer.querySelector(`[data-k="${k}"]`)?.classList.add('flash');
     const title=it.t==='corr'?'Correction':it.t==='note'?'Note du professeur':mediaKind(it)==='audio'?'Remarque audio':mediaKind(it)==='video'?'Remarque vidéo':'Remarque';
-    if(!edit())return modal(b=>{b.innerHTML=`<h3>${title}</h3>${it.fix?`<div class="fixv">${esc(it.fix)}</div>`:''}${mediaHTML(it,teacherMedia)}${it.txt?`<div style="white-space:pre-wrap">${esc(it.txt)}</div>`:''}`;const r=h('div','row'),c=h('button','on','Fermer');c.onclick=close;r.append(c);b.append(r);hydrate(b)});
+    if(!edit())return modal(b=>{b.innerHTML=`<h3>${title}</h3>${it.fix?`<div class="fixv">${esc(it.fix)}</div>`:''}${mediaHTML(it,teacherMedia)}${it.txt?`<div class="${it.t==='note'?'notepop':''}" style="white-space:pre-wrap">${esc(it.txt)}</div>`:''}`;const r=h('div','row'),c=h('button','on','Fermer');c.onclick=close;r.append(c);b.append(r);hydrate(b)});
     let draft={...it};
     modal(b=>{
       const paint=()=>{
@@ -436,7 +454,9 @@ function drawPins(){
     const p=c.pos||{x:.86,y:.05+i*.06};
     const b=h('button','cpin'+(S.justPlaced===c.id?' pulse':''),`✎ ${esc(c.title||'Devoir corrigé')}${c.grade?` <span class="g">${esc(c.grade)}</span>`:''}`);
     b.style.left=p.x*100+'%';b.style.top=p.y*100+'%';b.title='Voir le devoir corrigé';
-    b.onpointerdown=ev=>ev.stopPropagation();b.onclick=ev=>{ev.stopPropagation();openCopy(c)};mk.append(b)})
+    b.onpointerdown=ev=>ev.stopPropagation();b.onclick=ev=>{ev.stopPropagation();if(b._moved){b._moved=false;return}openCopy(c)};
+    if(edit()){b.classList.add('mov');b.title='Clique pour ouvrir · fais glisser pour déplacer';draggable(b,mk,p=>{c.pos=p;scheduleSave('d');toast('Repère déplacé ✓')})}
+    mk.append(b)})
 }
 function placePin(c){S.placing=c.id;onClose=null;close();S.view='livre';const pg=SEQ.findIndex(q=>q.id===c.page);if(pg>=0)S.i=pg;render();document.body.classList.add('placing');
   toast('Clique sur la page à l’endroit de l’exercice. Change de page avec les flèches si besoin.')}
