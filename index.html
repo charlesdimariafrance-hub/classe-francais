@@ -193,8 +193,10 @@ async function wrap(pw,data){const salt=crypto.getRandomValues(new Uint8Array(16
 const keyFor=p=>p.startsWith('t/')?S.T:S.K;
 async function loadBin(p,fresh){const r=await fetch(p+(fresh?'?t='+Date.now():''),fresh?{cache:'no-store'}:{});if(!r.ok)throw new Error('absent');return dec(keyFor(p),await r.arrayBuffer())}
 const URLS=new Map();
-function blobUrl(p,type){if(!URLS.has(p))URLS.set(p,loadBin(p).then(b=>URL.createObjectURL(new Blob([b],{type:type||'image/jpeg'}))));return URLS.get(p)}
-const io=new IntersectionObserver(es=>es.forEach(e=>{if(!e.isIntersecting)return;io.unobserve(e.target);const el=e.target;blobUrl(el.dataset.b,el.dataset.mt).then(u=>el.src=u).catch(()=>{})}),{rootMargin:'300px'});
+function blobUrl(p,type){if(!URLS.has(p))URLS.set(p,loadBin(p).then(b=>URL.createObjectURL(new Blob([b],{type:type||'image/jpeg'}))).catch(e=>{URLS.delete(p);throw e}));return URLS.get(p)}
+/* Un fichier tout juste envoyé met 1 à 2 minutes à être en ligne : on réessaie tout seul */
+function retryLater(el){const n=+(el.dataset.try||0);if(n>=8)return;el.dataset.try=n+1;setTimeout(()=>{if(!el.isConnected)return;const p=el.dataset.b;loadBin(p,true).then(b=>{const u=URL.createObjectURL(new Blob([b],{type:el.dataset.mt||'image/jpeg'}));URLS.set(p,Promise.resolve(u));el.src=u}).catch(()=>retryLater(el))},20000)}
+const io=new IntersectionObserver(es=>es.forEach(e=>{if(!e.isIntersecting)return;io.unobserve(e.target);const el=e.target;blobUrl(el.dataset.b,el.dataset.mt).then(u=>el.src=u).catch(()=>retryLater(el))}),{rootMargin:'300px'});
 function hydrate(root){root.querySelectorAll('[data-b]:not([src])').forEach(e=>io.observe(e))}
 const bpath=(id,teacher)=>(teacher?'t/b/':'d/b/')+id+'.bin';
 
