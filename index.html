@@ -3,7 +3,7 @@
 <meta name="robots" content="noindex,nofollow">
 <title>Classe de français</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,500;7..72,700&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Literata:opsz,wght@7..72,500;7..72,700&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
 <style>
 /* Diptyque : mosaïque des dossiers à gauche, grande page du cours à droite, les devoirs derrière une flèche */
 :root{--ink:#123a3e;--bg:#eef2ef;--panel:#fff;--line:#d3ded8;--muted:#5a7470;--soft:#e4eee9;--accent:#d9952a;--mae:#d8432f;--cos:#1f68a8;--fix:#0f7a3d;--paper:#fff;--shadow:0 6px 22px #12383c1c;
@@ -53,6 +53,12 @@ main{flex:1;min-width:0;overflow:auto;position:relative}
 .fix{position:absolute;font:700 14px/1.2 var(--body);color:var(--fix);background:#ffffffee;border:1px solid #9fd3b3;border-radius:4px;padding:1px 5px;white-space:nowrap;pointer-events:none;transform:translateY(3px);max-width:60%;overflow:hidden;text-overflow:ellipsis}
 .badge{position:absolute;width:24px;height:24px;border-radius:50%;transform:translate(-30%,-70%);color:#fff;font-size:12px;display:grid;place-items:center;border:2px solid #fff;box-shadow:0 2px 6px #0005;padding:0;background:#3b6f6a}
 .badge.audio{background:#7b3fa0}.badge.video{background:#c0392b}
+.sheet{container-type:inline-size}
+.it.write{transform:none;background:#ffffffd9;border:0;border-radius:4px;padding:1px 5px;box-shadow:0 1px 4px #0002;text-align:left;white-space:pre;font:700 calc(var(--fs,2.6)*1cqw)/1.05 "Caveat",cursive;text-shadow:0 0 2px #fff,0 0 4px #fff}
+.it.write.mov{outline:1px dashed #0003}
+.wsw{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.wsw button{width:34px;height:34px;border-radius:50%;padding:0;border:3px solid var(--panel);box-shadow:0 0 0 1px var(--line)}.wsw button.on{box-shadow:0 0 0 3px var(--ink)}
+.wsz button.on{background:var(--ink);color:var(--bg)}
+.wprev{font:700 34px/1.1 "Caveat",cursive;background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-height:48px;white-space:pre-wrap}
 .it.note{width:36px;height:36px;border-radius:50%;transform:translate(-50%,-50%);background:#ffd400;color:#3b3412;border:2px solid #fff;box-shadow:0 2px 8px #0005;font-size:17px;display:grid;place-items:center;padding:0}
 .it.note:hover,.it.pin:hover{transform:translate(-50%,-50%) scale(1.12)}
 .it.note.mov,.it.pin.mov,.cpin.mov{cursor:grab;touch-action:none}.dragging{cursor:grabbing!important;opacity:.85;z-index:9}
@@ -326,7 +332,7 @@ function go(i){if(i<0||i>=SEQ.length)return;S.i=i;render();try{history.replaceSt
 /* ---------- Barre d'outils ---------- */
 function toolbar(onChange){
   const w=h('div','tools');if(!edit())return w;
-  const T=[['read','✋ Lire'],['hl','Surligner'],['ul','Souligner'],['corr','✓ Corriger'],['note','Note'],['audio','♪ Audio'],['video','▶ Vidéo'],['link','🔗 Lien'],['erase','Gomme']];
+  const T=[['read','✋ Lire'],['hl','Surligner'],['ul','Souligner'],['corr','✓ Corriger'],['note','Note'],['audio','♪ Audio'],['video','▶ Vidéo'],['link','🔗 Lien'],['write','Aa Écrire'],['erase','Gomme']];
   for(const[k,l]of T){const b=h('button',S.tool===k?'on':'',l);b.onclick=()=>{S.tool=k;onChange()};w.append(b)}
   w.append(h('span','sep'));
   for(const c of COLORS){const b=h('button','sw'+(S.color===c?' on':''));b.style.background=c;b.title='Couleur';b.setAttribute('aria-label','Couleur');b.onclick=()=>{S.color=c;onChange()};w.append(b)}
@@ -368,6 +374,28 @@ function openLink(it){
     const r=h('div','row'),c=h('button','','Fermer'),o=h('a','','Ouvrir ↗');o.href=u;o.target='_blank';o.rel='noopener noreferrer';o.className='on';o.style.cssText='padding:9px 14px;border-radius:8px;background:var(--ink);color:var(--bg);text-decoration:none;font-weight:700';
     c.onclick=close;r.append(c,o);b.append(r)})
 }
+/* ---------- Texte écrit en couleur sur la page ---------- */
+const WCOL=['#d8432f','#1f68a8','#0f7a3d','#7b3fa0','#e07b00','#222222'];
+const WSIZ=[['Petit',1.9],['Moyen',2.6],['Grand',3.6],['Très grand',5]];
+function writeForm(it,onSave,onDelete){
+  let c=it.c||WCOL[0],sz=it.s||2.6,txt=it.txt||'';
+  modal(b=>{
+    const paint=()=>{
+      b.innerHTML=`<h3>${onDelete?'Modifier le texte':'Écrire sur la page'}</h3>
+        <label>Texte<textarea id="wt" rows="3" placeholder="Ex. : Attention à l’accord !">${esc(txt)}</textarea></label>
+        <div class="wsw" id="wc"></div><div class="row l wsz" id="ws"></div>
+        <div class="wprev" id="wp"></div>`;
+      const pv=()=>{const p=$('#wp');p.textContent=$('#wt').value||'Aperçu';p.style.color=c};
+      WCOL.forEach(x=>{const k=h('button',x===c?'on':'');k.style.background=x;k.setAttribute('aria-label','Couleur');k.onclick=()=>{txt=$('#wt').value;c=x;paint()};$('#wc').append(k)});
+      WSIZ.forEach(([l,v])=>{const k=h('button',v===sz?'on':'',l);k.onclick=()=>{txt=$('#wt').value;sz=v;paint()};$('#ws').append(k)});
+      $('#wt').oninput=pv;pv();
+      const r=h('div','row'),cn=h('button','','Annuler'),sv=h('button','on','Placer le texte');cn.onclick=close;
+      if(onDelete){sv.textContent='Enregistrer';const d=h('button','danger','Supprimer');d.onclick=()=>{close();onDelete()};r.append(cn,d,sv)}else r.append(cn,sv);
+      sv.onclick=()=>{const v=$('#wt').value.replace(/\s+$/,'');if(!v)return toast('Écris un texte.');close();onSave({txt:v,c,s:sz})};
+      b.append(r);setTimeout(()=>{const t=$('#wt');if(t){t.focus();t.setSelectionRange(t.value.length,t.value.length)}},30)
+    };paint()
+  })
+}
 function linkForm(it,onSave,onDelete){
   let kind=it.kind||'page';
   modal(b=>{
@@ -403,6 +431,7 @@ function sheet(path,store,teacherMedia){
       if(area){e=h('div','it '+it.t);P(e,it.x,it.y);e.style.width=it.w*100+'%';e.style.height=it.h*100+'%';e.style.background=it.c;e.style.borderColor=it.c;
         e.style.pointerEvents=drawing?'none':(edit()||hasContent(it)?'auto':'none');if(!drawing&&(edit()||hasContent(it)))e.style.cursor='pointer'}
       else if(it.t==='note'){e=h('button','it note','✎');P(e,it.x,it.y);e.title=(it.txt||'').slice(0,120);e.setAttribute('aria-label','Note du professeur')}
+      else if(it.t==='write'){e=h('div','it write',esc(it.txt));P(e,it.x,it.y);e.style.color=it.c||'#d8432f';e.style.setProperty('--fs',it.s||2.6);if(!edit())e.style.pointerEvents='none';else{e.style.cursor='pointer';e.title='Clique pour modifier · fais glisser pour déplacer'}}
       else if(it.t==='link'){e=h('button','it pin link'+(it.kind==='page'?' page':''),it.kind==='page'?'📖':'🔗');P(e,it.x,it.y);e.title=it.txt||linkTitle(it)}
       else{e=h('button','it pin '+it.t,it.t==='audio'?'♪':'▶');P(e,it.x,it.y);e.title=it.txt||(it.t==='audio'?'Écouter la remarque':'Voir la vidéo')}
       e.dataset.k=k;
@@ -418,6 +447,7 @@ function sheet(path,store,teacherMedia){
   const save=list=>commit(store,list);
   const openItem=k=>{
     const it=items()[k];if(!it)return;const area=['hl','ul','corr'].includes(it.t);
+    if(it.t==='write'){if(!edit())return;return writeForm(it,v=>{const l=items().slice();l[k]={...it,...v};save(l)},()=>save(items().filter((_,j)=>j!==k)))}
     if(it.t==='link'){
       if(!edit())return openLink(it);
       return linkForm(it,v=>{const l=items().slice();l[k]={...it,...v};save(l)},()=>save(items().filter((_,j)=>j!==k)));
@@ -454,6 +484,7 @@ function sheet(path,store,teacherMedia){
     const p=pos(ev);
     if(['hl','ul','corr'].includes(S.tool)){st=p;tmp=h('div','temp');layer.append(tmp);layer.setPointerCapture(ev.pointerId);ev.preventDefault();return}
     if(S.tool==='note')return modal(b=>{b.innerHTML='<h3>Nouvelle note</h3><label>Ce que l’élève lira<textarea id="tx" rows="5" placeholder="Explique la règle, donne un exemple…"></textarea></label>';const r=h('div','row'),c=h('button','','Annuler'),s=h('button','on','Placer la note');c.onclick=close;s.onclick=()=>{const v=$('#tx').value.trim();close();if(v)save([...items(),{t:'note',x:p.x,y:p.y,txt:v}])};r.append(c,s);b.append(r);setTimeout(()=>$('#tx').focus(),30)});
+    if(S.tool==='write')return writeForm({c:WCOL.includes(S.color)?S.color:'#d8432f',s:2.6},v=>save([...items(),{t:'write',x:p.x,y:p.y,...v}]));
     if(S.tool==='link')return linkForm({t:'link',x:p.x,y:p.y,kind:'page'},v=>save([...items(),{t:'link',x:p.x,y:p.y,...v}]));
     if(S.tool==='audio'||S.tool==='video'){const kind=S.tool;pickFile(kind==='audio'?'audio/*,.m4a,.webm,.mp3':'video/*,.mp4,.webm,.mov',async f=>{
       status('Envoi du média…');
@@ -490,7 +521,7 @@ function bookStore(id){return{page:id,get:()=>S.ann[id]||[],set:l=>{S.ann[id]=l;
 let bookSheet=null;
 function renderRemarks(){
   const box=$('#remarks');if(!box||!bookSheet)return;box.innerHTML='';
-  const list=(S.ann[cur().id]||[]).map((it,k)=>({it,k})).filter(({it})=>hasContent(it));
+  const list=(S.ann[cur().id]||[]).map((it,k)=>({it,k})).filter(({it})=>hasContent(it)&&it.t!=='write');
   if(!list.length){box.hidden=true;return}box.hidden=false;
   box.append(h('b','','Sur cette page :'));
   list.forEach(({it,k})=>{const mk=mediaKind(it);const lab=it.t==='link'?(it.kind==='page'?'📖 ':'🔗 ')+(it.txt||linkTitle(it)).slice(0,40):mk==='audio'?'♪ Écouter':mk==='video'?'▶ Regarder':it.t==='corr'?'✓ '+it.fix:'✎ '+(it.txt||'').slice(0,40);
