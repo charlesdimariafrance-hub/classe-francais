@@ -58,7 +58,10 @@ main{flex:1;min-width:0;overflow:auto;position:relative}
 .it.note.mov,.it.pin.mov,.cpin.mov{cursor:grab;touch-action:none}.dragging{cursor:grabbing!important;opacity:.85;z-index:9}
 .notepop{font-size:17px;line-height:1.5;white-space:pre-wrap;background:#fff8cc;color:#3b3412;border-left:4px solid #ffd400;border-radius:6px;padding:10px 12px;max-height:60vh;overflow:auto}
 .it.pin{width:34px;height:34px;border-radius:50%;transform:translate(-50%,-50%);color:#fff;font-size:15px;display:grid;place-items:center;border:2px solid #fff;box-shadow:0 2px 8px #0005}
-.it.pin.audio{background:#7b3fa0}.it.pin.video{background:#c0392b}
+.it.pin.audio{background:#7b3fa0}.it.pin.video{background:#c0392b}.it.pin.link{background:#1f68a8}.it.pin.link.page{background:#0f7a3d}
+.linkbox iframe{width:100%;aspect-ratio:16/9;border:0;border-radius:8px;background:#000}
+.linkurl{font-size:13px;color:var(--muted);word-break:break-all}
+.seg{display:flex;gap:6px;flex-wrap:wrap}.seg button{flex:1;min-width:150px}
 .temp{position:absolute;border:2px dashed var(--accent);pointer-events:none}
 .remarks{width:min(880px,100%);display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .remarks b{font:700 13px var(--display);margin-right:4px}
@@ -186,7 +189,7 @@ const h=(tag,cls,html)=>{const e=document.createElement(tag);if(cls)e.className=
 const esc=t=>String(t??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const edit=()=>S.teacher&&!S.asStudent;
 const cur=()=>SEQ[S.i];
-const hasContent=it=>!!(it.txt||it.fix||it.a);
+const hasContent=it=>!!(it.txt||it.fix||it.a||it.url||it.page);
 const mediaKind=it=>it.at||(it.t==='audio'||it.t==='video'?it.t:'');
 const LS={get(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}},del(k){try{localStorage.removeItem(k)}catch(e){}}};
 function status(t){$('#status').textContent=t}
@@ -323,7 +326,7 @@ function go(i){if(i<0||i>=SEQ.length)return;S.i=i;render();try{history.replaceSt
 /* ---------- Barre d'outils ---------- */
 function toolbar(onChange){
   const w=h('div','tools');if(!edit())return w;
-  const T=[['read','✋ Lire'],['hl','Surligner'],['ul','Souligner'],['corr','✓ Corriger'],['note','Note'],['audio','♪ Audio'],['video','▶ Vidéo'],['erase','Gomme']];
+  const T=[['read','✋ Lire'],['hl','Surligner'],['ul','Souligner'],['corr','✓ Corriger'],['note','Note'],['audio','♪ Audio'],['video','▶ Vidéo'],['link','🔗 Lien'],['erase','Gomme']];
   for(const[k,l]of T){const b=h('button',S.tool===k?'on':'',l);b.onclick=()=>{S.tool=k;onChange()};w.append(b)}
   w.append(h('span','sep'));
   for(const c of COLORS){const b=h('button','sw'+(S.color===c?' on':''));b.style.background=c;b.title='Couleur';b.setAttribute('aria-label','Couleur');b.onclick=()=>{S.color=c;onChange()};w.append(b)}
@@ -347,6 +350,45 @@ function draggable(el,box,drop){
   })
 }
 
+/* ---------- Repères « lien » : page du livre, site, audio ou vidéo sur Internet ---------- */
+const safeUrl=u=>{u=String(u||'').trim();if(u&&!/^https?:\/\//i.test(u))u='https://'+u;try{const x=new URL(u);return /^https?:$/.test(x.protocol)?x.href:''}catch(e){return ''}};
+const ytId=u=>{const m=String(u).match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|embed\/|live\/))([\w-]{11})/);return m?m[1]:''};
+const pageLabel=id=>{const q=SEQ.find(x=>x.id===id);return q?`${q.s.bt} · ${markFor(q.s,q.n)} · p. ${pn(q.n)}`:'page'};
+function linkTitle(it){return it.kind==='page'?'Aller à : '+pageLabel(it.page):'Ouvrir le lien'}
+function openLink(it){
+  if(it.kind==='page'){const i=SEQ.findIndex(x=>x.id===it.page);if(i<0)return toast('Page introuvable');close();S.view='livre';go(i);toast(pageLabel(it.page));return}
+  const u=safeUrl(it.url);if(!u)return toast('Lien invalide');
+  const y=ytId(u),ext=(u.split('?')[0].split('.').pop()||'').toLowerCase();
+  modal(b=>{b.className='box linkbox';
+    let media='';
+    if(y)media=`<iframe src="https://www.youtube-nocookie.com/embed/${y}" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>`;
+    else if(['mp3','m4a','wav','ogg','aac'].includes(ext))media=`<audio controls src="${esc(u)}" style="width:100%"></audio>`;
+    else if(['mp4','webm','mov'].includes(ext))media=`<video controls playsinline src="${esc(u)}" style="width:100%;border-radius:8px;background:#000"></video>`;
+    b.innerHTML=`<h3>${esc(it.txt||'Lien')}</h3>${media}<p class="linkurl">${esc(u)}</p>`;
+    const r=h('div','row'),c=h('button','','Fermer'),o=h('a','','Ouvrir ↗');o.href=u;o.target='_blank';o.rel='noopener noreferrer';o.className='on';o.style.cssText='padding:9px 14px;border-radius:8px;background:var(--ink);color:var(--bg);text-decoration:none;font-weight:700';
+    c.onclick=close;r.append(c,o);b.append(r)})
+}
+function linkForm(it,onSave,onDelete){
+  let kind=it.kind||'page';
+  modal(b=>{
+    const paint=()=>{
+      const opts=SECTIONS.map(s=>`<optgroup label="${esc((s.book==='mae'?'MAE 2':'Cosmo 3')+' · '+s.title)}">`+s.pages.map(n=>{const id=pid(s.book,n);return `<option value="${id}"${id===it.page?' selected':''}>${esc(markFor(s,n))} · p. ${pn(n)}</option>`}).join('')+'</optgroup>').join('');
+      b.innerHTML=`<h3>${onDelete?'Modifier le lien':'Nouveau lien'}</h3>
+        <div class="seg"><button id="kp" class="${kind==='page'?'on':''}">📖 Une page du livre</button><button id="kw" class="${kind==='web'?'on':''}">🔗 Internet (site, audio, vidéo)</button></div>
+        ${kind==='page'?`<label>Page à ouvrir<select id="lp">${opts}</select></label>`:`<label>Adresse (YouTube, site, fichier audio ou vidéo)<input id="lu" placeholder="https://…" value="${esc(it.url||'')}"></label><p class="hint">Une vidéo YouTube s’ouvre directement dans le site. Les autres liens s’ouvrent dans un nouvel onglet.</p>`}
+        <label>Titre affiché (facultatif)<input id="lt" placeholder="${kind==='page'?'Ex. : Revoir la conjugaison':'Ex. : Chanson « La Bohème »'}" value="${esc(it.txt||'')}"></label>`;
+      const keep=()=>{it={...it,txt:$('#lt').value};if($('#lu'))it.url=$('#lu').value;if($('#lp'))it.page=$('#lp').value};
+      $('#kp').onclick=()=>{keep();kind='page';paint()};$('#kw').onclick=()=>{keep();kind='web';paint()};
+      const r=h('div','row'),c=h('button','','Annuler'),s=h('button','on','Enregistrer');c.onclick=close;
+      if(onDelete){const d=h('button','danger','Supprimer');d.onclick=()=>{close();onDelete()};r.append(c,d,s)}else r.append(c,s);
+      s.onclick=()=>{keep();const txt=it.txt.trim();
+        if(kind==='page'){if(!it.page)return toast('Choisis une page.');close();onSave({kind:'page',page:it.page,url:'',txt})}
+        else{const u=safeUrl(it.url);if(!u)return toast('Adresse invalide : elle doit commencer par https://');close();onSave({kind:'web',url:u,page:'',txt})}};
+      b.append(r)
+    };paint()
+  })
+}
+
 /* ---------- Feuille annotable ---------- */
 function sheet(path,store,teacherMedia){
   const el=h('div','sheet'),img=h('img');img.alt='';img.dataset.b=path;
@@ -361,6 +403,7 @@ function sheet(path,store,teacherMedia){
       if(area){e=h('div','it '+it.t);P(e,it.x,it.y);e.style.width=it.w*100+'%';e.style.height=it.h*100+'%';e.style.background=it.c;e.style.borderColor=it.c;
         e.style.pointerEvents=drawing?'none':(edit()||hasContent(it)?'auto':'none');if(!drawing&&(edit()||hasContent(it)))e.style.cursor='pointer'}
       else if(it.t==='note'){e=h('button','it note','✎');P(e,it.x,it.y);e.title=(it.txt||'').slice(0,120);e.setAttribute('aria-label','Note du professeur')}
+      else if(it.t==='link'){e=h('button','it pin link'+(it.kind==='page'?' page':''),it.kind==='page'?'📖':'🔗');P(e,it.x,it.y);e.title=it.txt||linkTitle(it)}
       else{e=h('button','it pin '+it.t,it.t==='audio'?'♪':'▶');P(e,it.x,it.y);e.title=it.txt||(it.t==='audio'?'Écouter la remarque':'Voir la vidéo')}
       e.dataset.k=k;
       e.onpointerdown=ev=>ev.stopPropagation();
@@ -375,6 +418,10 @@ function sheet(path,store,teacherMedia){
   const save=list=>commit(store,list);
   const openItem=k=>{
     const it=items()[k];if(!it)return;const area=['hl','ul','corr'].includes(it.t);
+    if(it.t==='link'){
+      if(!edit())return openLink(it);
+      return linkForm(it,v=>{const l=items().slice();l[k]={...it,...v};save(l)},()=>save(items().filter((_,j)=>j!==k)));
+    }
     layer.querySelector(`[data-k="${k}"]`)?.classList.add('flash');
     const title=it.t==='corr'?'Correction':it.t==='note'?'Note du professeur':mediaKind(it)==='audio'?'Remarque audio':mediaKind(it)==='video'?'Remarque vidéo':'Remarque';
     if(!edit())return modal(b=>{b.innerHTML=`<h3>${title}</h3>${it.fix?`<div class="fixv">${esc(it.fix)}</div>`:''}${mediaHTML(it,teacherMedia)}${it.txt?`<div class="${it.t==='note'?'notepop':''}" style="white-space:pre-wrap">${esc(it.txt)}</div>`:''}`;const r=h('div','row'),c=h('button','on','Fermer');c.onclick=close;r.append(c);b.append(r);hydrate(b)});
@@ -407,6 +454,7 @@ function sheet(path,store,teacherMedia){
     const p=pos(ev);
     if(['hl','ul','corr'].includes(S.tool)){st=p;tmp=h('div','temp');layer.append(tmp);layer.setPointerCapture(ev.pointerId);ev.preventDefault();return}
     if(S.tool==='note')return modal(b=>{b.innerHTML='<h3>Nouvelle note</h3><label>Ce que l’élève lira<textarea id="tx" rows="5" placeholder="Explique la règle, donne un exemple…"></textarea></label>';const r=h('div','row'),c=h('button','','Annuler'),s=h('button','on','Placer la note');c.onclick=close;s.onclick=()=>{const v=$('#tx').value.trim();close();if(v)save([...items(),{t:'note',x:p.x,y:p.y,txt:v}])};r.append(c,s);b.append(r);setTimeout(()=>$('#tx').focus(),30)});
+    if(S.tool==='link')return linkForm({t:'link',x:p.x,y:p.y,kind:'page'},v=>save([...items(),{t:'link',x:p.x,y:p.y,...v}]));
     if(S.tool==='audio'||S.tool==='video'){const kind=S.tool;pickFile(kind==='audio'?'audio/*,.m4a,.webm,.mp3':'video/*,.mp4,.webm,.mov',async f=>{
       status('Envoi du média…');
       try{const u=await uploadMedia(f,teacherMedia);save([...items(),{t:kind,at:kind,x:p.x,y:p.y,a:u.id,mt:u.mt,txt:''}]);toast('Remarque ajoutée. Clique dessus pour écrire un texte.')}catch(e){status('Non enregistré');if(e?.code==='token')askToken();toast(mediaErr(e))}
@@ -445,7 +493,7 @@ function renderRemarks(){
   const list=(S.ann[cur().id]||[]).map((it,k)=>({it,k})).filter(({it})=>hasContent(it));
   if(!list.length){box.hidden=true;return}box.hidden=false;
   box.append(h('b','','Sur cette page :'));
-  list.forEach(({it,k})=>{const mk=mediaKind(it);const lab=mk==='audio'?'♪ Écouter':mk==='video'?'▶ Regarder':it.t==='corr'?'✓ '+it.fix:'✎ '+(it.txt||'').slice(0,40);
+  list.forEach(({it,k})=>{const mk=mediaKind(it);const lab=it.t==='link'?(it.kind==='page'?'📖 ':'🔗 ')+(it.txt||linkTitle(it)).slice(0,40):mk==='audio'?'♪ Écouter':mk==='video'?'▶ Regarder':it.t==='corr'?'✓ '+it.fix:'✎ '+(it.txt||'').slice(0,40);
     const b=h('button','chip '+mk,esc(lab+(mk&&it.txt?' · '+it.txt.slice(0,30):'')));b.onclick=()=>bookSheet._open(k);box.append(b)})
 }
 function drawPins(){
