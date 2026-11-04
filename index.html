@@ -334,7 +334,7 @@ function go(i){if(i<0||i>=SEQ.length)return;S.i=i;render();try{history.replaceSt
 /* ---------- Barre d'outils ---------- */
 function toolbar(onChange,o={}){
   const w=h('div','tools');if(!edit())return w;
-  const T=[['read','✋ Lire'],['hl','Surligner'],['ul','Souligner'],['corr','✓ Corriger'],['note','Note'],['audio','♪ Audio'],['video','▶ Vidéo'],['link','🔗 Lien'],['write','Aa Écrire'],['pen','✏ Dessin'],...(o.noImg?[]:[['img','🖼 Image']]),['erase','Gomme']];
+  const T=[['read','✋ Lire'],['hl','Surligner'],['ul','Souligner'],['corr','✓ Corriger'],['note','Note'],['audio','♪ Audio'],['video','▶ Vidéo'],['link','🔗 Lien'],['write','Aa Écrire'],['pen','✏ Dessin'],...(o.noImg?[]:[['img','🖼 Image'],['pdf','📄 PDF']]),['erase','Gomme']];
   for(const[k,l]of T){const b=h('button',S.tool===k?'on':'',l);b.onclick=()=>{S.tool=k;onChange()};w.append(b)}
   w.append(h('span','sep'));
   for(const c of COLORS){const b=h('button','sw'+(S.color===c?' on':''));b.style.background=c;b.title='Couleur';b.setAttribute('aria-label','Couleur');b.onclick=()=>{S.color=c;onChange()};w.append(b)}
@@ -516,6 +516,15 @@ function sheet(path,store,teacherMedia){
     if(['hl','ul','corr'].includes(S.tool)){st=p;tmp=h('div','temp');layer.append(tmp);layer.setPointerCapture(ev.pointerId);ev.preventDefault();return}
     if(S.tool==='note')return modal(b=>{b.innerHTML='<h3>Nouvelle note</h3><label>Ce que l’élève lira<textarea id="tx" rows="5" placeholder="Explique la règle, donne un exemple…"></textarea></label>';const r=h('div','row'),c=h('button','','Annuler'),s=h('button','on','Placer la note');c.onclick=close;s.onclick=()=>{const v=$('#tx').value.trim();close();if(v)save([...items(),{t:'note',x:p.x,y:p.y,txt:v}])};r.append(c,s);b.append(r);setTimeout(()=>$('#tx').focus(),30)});
     if(S.tool==='pen'){pen={pts:[[p.x,p.y]]};const NS='http://www.w3.org/2000/svg';penEl=document.createElementNS(NS,'path');penEl.style.stroke=S.color;penEl.style.strokeWidth='3px';layer.querySelector('svg.pen').append(penEl);layer.setPointerCapture(ev.pointerId);ev.preventDefault();return}
+    if(S.tool==='pdf')return pickFile('application/pdf,.pdf',async f=>{try{
+      status('Lecture du PDF…');const lib=await loadPdfJs();const doc=await lib.getDocument({data:new Uint8Array(await f.arrayBuffer())}).promise;
+      const n=Math.min(doc.numPages,20),name=f.name.replace(/\.pdf$/i,''),add=[];
+      for(let i=1;i<=n;i++){status(`Envoi du PDF… page ${i}/${n}`);const pg=await doc.getPage(i);const v0=pg.getViewport({scale:1});const vp=pg.getViewport({scale:Math.min(2.5,1600/Math.max(v0.width,v0.height))});
+        const c=document.createElement('canvas');c.width=Math.round(vp.width);c.height=Math.round(vp.height);const cx=c.getContext('2d');cx.fillStyle='#fff';cx.fillRect(0,0,c.width,c.height);await pg.render({canvasContext:cx,viewport:vp}).promise;
+        const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',.85));const id=await uploadBlob(await shrink(blob),teacherMedia);
+        add.push({t:'img',x:p.x,y:Math.min(.98,p.y+(i-1)*.035),a:id,txt:`PDF · ${name} · p. ${i}/${n}`,ann:[]})}
+      save([...items(),...add]);status('PDF ajouté');toast(`PDF ajouté : ${n} page${n>1?'s':''}. Clique sur 🖼 pour ouvrir une page et écrire dessus.`+(doc.numPages>20?' (seulement les 20 premières pages)':''))
+    }catch(e){status('Non enregistré');if(e?.code==='token')askToken();else toast('L’envoi du PDF a échoué.')}});
     if(S.tool==='img')return pickFile('image/*',async f=>{status('Envoi de l’image…');try{const id=await uploadBlob(await shrink(f),teacherMedia);const l=[...items(),{t:'img',x:p.x,y:p.y,a:id,txt:'',ann:[]}];save(l);status('Image ajoutée');toast('Image ajoutée. Clique sur 🖼 pour l’ouvrir et l’annoter.')}catch(e){status('Non enregistré');if(e?.code==='token')askToken();else toast('L’envoi de l’image a échoué.')}});
     if(S.tool==='write')return writeForm({c:WCOL.includes(S.color)?S.color:'#d8432f',s:2.6},v=>save([...items(),{t:'write',x:p.x,y:p.y,...v}]));
     if(S.tool==='link')return linkForm({t:'link',x:p.x,y:p.y,kind:'page'},v=>save([...items(),{t:'link',x:p.x,y:p.y,...v}]));
@@ -650,6 +659,7 @@ function openCopy(c0){
   },true);
   onClose=()=>render();
 }
+let _pdfjs=null;function loadPdfJs(){return _pdfjs||(_pdfjs=new Promise((ok,ko)=>{const sc=document.createElement('script');sc.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';sc.onload=()=>{window.pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';ok(window.pdfjsLib)};sc.onerror=()=>{_pdfjs=null;ko(new Error('pdfjs'))};document.head.appendChild(sc)}))}
 async function shrink(file){
   const bmp=await createImageBitmap(file);const k=Math.min(1,1700/Math.max(bmp.width,bmp.height));
   const c=document.createElement('canvas');c.width=Math.round(bmp.width*k);c.height=Math.round(bmp.height*k);c.getContext('2d').drawImage(bmp,0,0,c.width,c.height);
